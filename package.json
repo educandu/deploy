@@ -1,0 +1,14 @@
+{
+  "name": "deploy",
+  "version": "0.0.0",
+  "description": "Deployment utility for Educandu projects",
+  "main": "deploy",
+  "repository": "https://github.com/educandu/deploy",
+  "author": "Educandu Team",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "aws-sdk": "~2.771.0",
+    "yargs": "~16.0.3"
+  }
+}
