@@ -46,12 +46,15 @@ const { ECS, Credentials } = require('aws-sdk');
     console.log(`Current task definition: ${task.taskDefinitionArn}`);
 
     const containerEnvironmentVariables = (config.containerEnv || [])
-      .map(keyValueString => {
-        const indexOfEqual = keyValueString.indexOf('=');
-        const name = keyValueString.substr(0, indexOfEqual);
-        const value = keyValueString.substr(indexOfEqual + 1,);
+      .map(nameValueString => {
+        const splitRegex = /^([\w]+)=(.*)$/;
+        const pairs = splitRegex.exec(nameValueString);
 
-        return { name, value };
+        if (!pairs) {
+          throw new Error(`Incorrect syntax for argument 'container-env': '${nameValueString}'. Expect 'name=value'`);
+        }
+
+        return { name: pairs[1].trim(), value: pairs[2].trim() };
       });
 
     const newTaskDefinition = {
