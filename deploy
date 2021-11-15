@@ -18,7 +18,10 @@ const { ECS, Credentials } = require('aws-sdk');
       .option('image', { demandOption: true, type: 'string' })
       .option('image-tag', { demandOption: true, type: 'string' })
       .option('wait', { default: false, type: 'boolean' })
+      .option('target-variables', { demandOption: true, type: 'array' })
       .argv;
+
+    console.log('TargetVariables', config.targertVariables + ' ' + typeof (config.targertVariables));
 
     const ecs = new ECS({
       region: config.region,
