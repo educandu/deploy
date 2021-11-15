@@ -39,7 +39,7 @@ jobs:
   push:
     runs-on: ubuntu-20.04
     needs: [build]
-    if: github.ref == 'refs/heads/feature/EDU-78-configure-deploy-tool-for-educandu'
+    if: github.ref == 'refs/heads/main'
     env:
       DOCKER_IMAGE: educandu/deploy
     steps:
@@ -61,5 +61,5 @@ jobs:
           push: true
           context: .
           tags: |
-            ${{ env.DOCKER_IMAGE }}:pre-${{ env.RELEASE_NUMBER }}
+            ${{ env.DOCKER_IMAGE }}:${{ env.RELEASE_NUMBER }}
             ${{ env.DOCKER_IMAGE }}:latest
