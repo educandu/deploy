@@ -8,7 +8,6 @@ const { ECS, Credentials } = require('aws-sdk');
 
   try {
 
-    console.log('process.argv', process.argv);
     const config = yargs(process.argv.slice(2))
       .option('access-key', { demandOption: true, type: 'string' })
       .option('secret-key', { demandOption: true, type: 'string' })
@@ -18,7 +17,7 @@ const { ECS, Credentials } = require('aws-sdk');
       .option('container', { demandOption: true, type: 'string' })
       .option('image', { demandOption: true, type: 'string' })
       .option('image-tag', { demandOption: true, type: 'string' })
-      .option('target-variables', { demandOption: true, type: 'array', string: true })
+      .option('container-env-pairs', { type: 'array', string: true })
       .option('wait', { default: false, type: 'boolean' })
       .argv;
 
@@ -46,13 +45,12 @@ const { ECS, Credentials } = require('aws-sdk');
     const task = taskDefinitionDescription.taskDefinition;
     console.log(`Current task definition: ${task.taskDefinitionArn}`);
 
-    console.log(`config.targetVariables: ${config.targetVariables}`);
-    const containerEnvironmentVariables = (config.targetVariables || [])
+    const containerEnvironmentVariables = (config.containerEnvPairs || [])
       .map(keyValueString => {
-        const parts = keyValueString.split('=');
-        return { name: parts[0], value: parts[1] };
-      });
-    console.log(`containerEnvironmentVariables: ${JSON.stringify(containerEnvironmentVariables)}`);
+        const parts = keyValueString.split(/=(.+)/);
+        return { name: parts[0].trim(), value: parts[1].trim() };
+      })
+      .filter(envVariable => envVariable);
 
     const newTaskDefinition = {
       family: task.family,
@@ -64,16 +62,21 @@ const { ECS, Credentials } = require('aws-sdk');
       requiresCompatibilities: task.requiresCompatibilities,
       cpu: task.cpu,
       memory: task.memory,
-      containerDefinitions: task.containerDefinitions.map(cd => {
-        if (cd.name !== config.container) {
-          return cd;
+      containerDefinitions: task.containerDefinitions.map(containerDefinition => {
+        if (containerDefinition.name !== config.container) {
+          return containerDefinition;
         }
 
-        return {
-          ...cd,
+        const newContainerDefinition = {
+          ...containerDefinition,
           image: `${config.image}:${config.imageTag}`
-          // environment: containerEnvironmentVariables
-        };
+        }
+
+        if (containerEnvironmentVariables.length) {
+          newContainerDefinition.environment = containerEnvironmentVariables;
+        }
+
+        return newContainerDefinition;
       })
     };
 
@@ -81,6 +84,10 @@ const { ECS, Credentials } = require('aws-sdk');
 
     const registeredTask = newTaskDefinitionDescription.taskDefinition;
     console.log(`New task definition: ${registeredTask.taskDefinitionArn}`);
+
+    if (containerEnvironmentVariables.length) {
+      console.log(`New task definition environment: ${JSON.stringify(containerEnvironmentVariables)}`);
+    }
 
     await ecsUpdateService({
       cluster: config.cluster,
