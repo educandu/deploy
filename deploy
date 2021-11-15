@@ -17,7 +17,7 @@ const { ECS, Credentials } = require('aws-sdk');
       .option('container', { demandOption: true, type: 'string' })
       .option('image', { demandOption: true, type: 'string' })
       .option('image-tag', { demandOption: true, type: 'string' })
-      .option('container-env-pairs', { type: 'array', string: true })
+      .option('container-env', { type: 'array', string: true })
       .option('wait', { default: false, type: 'boolean' })
       .argv;
 
@@ -45,7 +45,7 @@ const { ECS, Credentials } = require('aws-sdk');
     const task = taskDefinitionDescription.taskDefinition;
     console.log(`Current task definition: ${task.taskDefinitionArn}`);
 
-    const containerEnvironmentVariables = (config.containerEnvPairs || [])
+    const containerEnvironmentVariables = (config.containerEnv || [])
       .map(keyValueString => {
         const indexOfEqual = keyValueString.indexOf('=');
         const name = keyValueString.substr(0, indexOfEqual);
