@@ -47,10 +47,12 @@ const { ECS, Credentials } = require('aws-sdk');
 
     const containerEnvironmentVariables = (config.containerEnvPairs || [])
       .map(keyValueString => {
-        const parts = keyValueString.split(/=(.+)/);
-        return { name: parts[0].trim(), value: parts[1].trim() };
-      })
-      .filter(envVariable => envVariable);
+        const indexOfEqual = keyValueString.indexOf('=');
+        const name = keyValueString.substr(0, indexOfEqual);
+        const value = keyValueString.substr(indexOfEqual + 1,);
+
+        return { name, value };
+      });
 
     const newTaskDefinition = {
       family: task.family,
