@@ -17,6 +17,7 @@ const { ECS, Credentials } = require('aws-sdk');
       .option('container', { demandOption: true, type: 'string' })
       .option('image', { demandOption: true, type: 'string' })
       .option('image-tag', { demandOption: true, type: 'string' })
+      .option('container-env', { type: 'array', string: true })
       .option('wait', { default: false, type: 'boolean' })
       .argv;
 
@@ -44,6 +45,18 @@ const { ECS, Credentials } = require('aws-sdk');
     const task = taskDefinitionDescription.taskDefinition;
     console.log(`Current task definition: ${task.taskDefinitionArn}`);
 
+    const containerEnvironmentVariables = (config.containerEnv || [])
+      .map(nameValueString => {
+        const splitRegex = /^([\w]+)=(.*)$/;
+        const pairs = splitRegex.exec(nameValueString);
+
+        if (!pairs) {
+          throw new Error(`Incorrect syntax for argument 'container-env': '${nameValueString}'. Expect 'name=value'`);
+        }
+
+        return { name: pairs[1].trim(), value: pairs[2].trim() };
+      });
+
     const newTaskDefinition = {
       family: task.family,
       taskRoleArn: task.taskRoleArn,
@@ -54,8 +67,21 @@ const { ECS, Credentials } = require('aws-sdk');
       requiresCompatibilities: task.requiresCompatibilities,
       cpu: task.cpu,
       memory: task.memory,
-      containerDefinitions: task.containerDefinitions.map(cd => {
-        return (cd.name === config.container) ? { ...cd, image: `${config.image}:${config.imageTag}` } : cd;
+      containerDefinitions: task.containerDefinitions.map(containerDefinition => {
+        if (containerDefinition.name !== config.container) {
+          return containerDefinition;
+        }
+
+        const newContainerDefinition = {
+          ...containerDefinition,
+          image: `${config.image}:${config.imageTag}`
+        }
+
+        if (containerEnvironmentVariables.length) {
+          newContainerDefinition.environment = containerEnvironmentVariables;
+        }
+
+        return newContainerDefinition;
       })
     };
 
@@ -63,6 +89,10 @@ const { ECS, Credentials } = require('aws-sdk');
 
     const registeredTask = newTaskDefinitionDescription.taskDefinition;
     console.log(`New task definition: ${registeredTask.taskDefinitionArn}`);
+
+    if (containerEnvironmentVariables.length) {
+      console.log(`New task definition environment: ${JSON.stringify(containerEnvironmentVariables)}`);
+    }
 
     await ecsUpdateService({
       cluster: config.cluster,
