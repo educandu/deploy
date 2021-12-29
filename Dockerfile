@@ -1,4 +1,4 @@
-FROM node:14.15.3-alpine
+FROM node:16.13.1-alpine3.12
 
 ENV NODE_ENV "production"
 
@@ -10,4 +10,4 @@ RUN yarn install --non-interactive --frozen-lockfile --check-files --production=
 
 COPY . /app/
 
-ENTRYPOINT ["/app/deploy"]
+ENTRYPOINT ["node", "./index.js"]

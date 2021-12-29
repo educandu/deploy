@@ -1,30 +1,28 @@
-#!/usr/bin/env node
+import AWS from 'aws-sdk';
+import { promisify } from 'util';
+import parseEnvString from 'parse-env-string';
 
-const yargs = require('yargs');
-const { promisify } = require('util');
-const { ECS, Credentials } = require('aws-sdk');
+const { ECS, Credentials } = AWS;
 
-(async () => {
-
-  try {
-
-    const config = yargs(process.argv.slice(2))
-      .option('access-key', { demandOption: true, type: 'string' })
-      .option('secret-key', { demandOption: true, type: 'string' })
-      .option('region', { demandOption: true, type: 'string' })
-      .option('cluster', { demandOption: true, type: 'string' })
-      .option('service', { demandOption: true, type: 'string' })
-      .option('container', { demandOption: true, type: 'string' })
-      .option('image', { demandOption: true, type: 'string' })
-      .option('image-tag', { demandOption: true, type: 'string' })
-      .option('container-env', { type: 'array', string: true })
-      .option('wait', { default: false, type: 'boolean' })
-      .argv;
-
+export default {
+  command: 'ecs',
+  describe: 'Deploy an AWS ECS service using Fargate',
+  builder: yargs => yargs
+    .option('access-key', { demandOption: true, type: 'string' })
+    .option('secret-key', { demandOption: true, type: 'string' })
+    .option('region', { demandOption: true, type: 'string' })
+    .option('cluster', { demandOption: true, type: 'string' })
+    .option('service', { demandOption: true, type: 'string' })
+    .option('container', { demandOption: true, type: 'string' })
+    .option('image', { demandOption: true, type: 'string' })
+    .option('image-tag', { demandOption: true, type: 'string' })
+    .option('container-env', { type: 'array', string: true })
+    .option('wait', { default: false, type: 'boolean' }),
+  handler: async argv => {
     const ecs = new ECS({
-      region: config.region,
+      region: argv.region,
       apiVersion: '2014-11-13',
-      credentials: new Credentials(config.accessKey, config.secretKey)
+      credentials: new Credentials(argv.accessKey, argv.secretKey)
     });
 
     const ecsDescribeServices = promisify(ecs.describeServices.bind(ecs));
@@ -34,8 +32,8 @@ const { ECS, Credentials } = require('aws-sdk');
     const ecsWaitFor = promisify(ecs.waitFor.bind(ecs));
 
     const serviceDescriptions = await ecsDescribeServices({
-      cluster: config.cluster,
-      services: [config.service]
+      cluster: argv.cluster,
+      services: [argv.service]
     });
 
     const taskDefinitionDescription = await ecsDescribeTaskDefinition({
@@ -45,17 +43,8 @@ const { ECS, Credentials } = require('aws-sdk');
     const task = taskDefinitionDescription.taskDefinition;
     console.log(`Current task definition: ${task.taskDefinitionArn}`);
 
-    const containerEnvironmentVariables = (config.containerEnv || [])
-      .map(nameValueString => {
-        const splitRegex = /^([\w]+)=(.*)$/;
-        const pairs = splitRegex.exec(nameValueString);
-
-        if (!pairs) {
-          throw new Error(`Incorrect syntax for argument 'container-env': '${nameValueString}'. Expect 'name=value'`);
-        }
-
-        return { name: pairs[1].trim(), value: pairs[2].trim() };
-      });
+    const envObj = parseEnvString((argv.containerEnv || []).join(' '));
+    const containerEnvironmentVariables = Object.entries(envObj).map(([name, value]) => ({ name, value }));
 
     const newTaskDefinition = {
       family: task.family,
@@ -68,14 +57,14 @@ const { ECS, Credentials } = require('aws-sdk');
       cpu: task.cpu,
       memory: task.memory,
       containerDefinitions: task.containerDefinitions.map(containerDefinition => {
-        if (containerDefinition.name !== config.container) {
+        if (containerDefinition.name !== argv.container) {
           return containerDefinition;
         }
 
         const newContainerDefinition = {
           ...containerDefinition,
-          image: `${config.image}:${config.imageTag}`
-        }
+          image: `${argv.image}:${argv.imageTag}`
+        };
 
         if (containerEnvironmentVariables.length) {
           newContainerDefinition.environment = containerEnvironmentVariables;
@@ -95,24 +84,19 @@ const { ECS, Credentials } = require('aws-sdk');
     }
 
     await ecsUpdateService({
-      cluster: config.cluster,
-      service: config.service,
+      cluster: argv.cluster,
+      service: argv.service,
       taskDefinition: registeredTask.taskDefinitionArn
     });
 
-    if (config.wait) {
+    if (argv.wait) {
       console.log('Waiting for service stability...');
       await ecsWaitFor('servicesStable', {
-        cluster: config.cluster,
-        services: [config.service],
+        cluster: argv.cluster,
+        services: [argv.service]
       });
     }
 
     console.log('DONE!');
-
-  } catch (error) {
-    console.error(error);
-    process.exit(1);
   }
-
-})();
+};

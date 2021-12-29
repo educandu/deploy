@@ -11,11 +11,6 @@
       "impliedStrict": true
     }
   },
-  "settings": {
-    "react": {
-      "version": "16.9"
-    }
-  },
   "plugins": [
     "import"
   ],
