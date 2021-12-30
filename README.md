@@ -9,7 +9,7 @@ Updates the container image version inside a task definition of a ECS service de
 ### Usage
 
 ~~~
-$ ./deploy ecs --access-key 487nct72tc4tdjgbj ...
+$ ./node index.js ecs --access-key 487nct72tc4tdjgbj ...
 ~~~
 
 ### Arguments
@@ -24,7 +24,7 @@ $ ./deploy ecs --access-key 487nct72tc4tdjgbj ...
 | container | AWS ECS container name | string | yes |
 | image | AWS ECS image | string | yes |
 | image-tag | AWS ECS image tag | string | yes |
-| container-env | Environment variable pair to be passed to the deployed container, format `name=value` | array of string | yes |
+| container-env | Environment variable pair to be passed to the deployed container, format `name=value` | array of string | no |
 | wait | Whether or not to wait for service stability | boolean | no (defaults to false) |
 
 Note:
@@ -39,7 +39,7 @@ function, and updates a CloudFront distribution that is using this function to t
 ### Usage
 
 ~~~
-$ ./deploy edge --access-key 487nct72tc4tdjgbj ...
+$ ./node index.js edge --access-key 487nct72tc4tdjgbj ...
 ~~~
 
 ### Arguments
@@ -48,7 +48,7 @@ $ ./deploy edge --access-key 487nct72tc4tdjgbj ...
 | --- | --- | --- | --- |
 | access-key | AWS access key | string | yes |
 | secret-key | AWS secret key | string | yes |
-| lambda-env | Environment variable pair to be available to the deployed function, format `name=value` | array of string | yes |
+| lambda-env | Environment variable pair to be available to the deployed function, format `name=value` | array of string | no |
 | lambda-env-inject | Optional: Path of the JS file inside the zip file to directly inject environment variables | array of string | no |
 | function-name | Name of the Lambda function | string | yes |
 | handler | Handler of the Lambda function | string | yes |
