@@ -40,6 +40,7 @@ export default {
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#updateFunctionConfiguration-property
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#updateFunctionCode-property
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#publishVersion-property
+    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#waitFor-property
     const lambdaUpdateFunctionConfiguration = promisify(lambda.updateFunctionConfiguration.bind(lambda));
     const lambdaUpdateFunctionCode = promisify(lambda.updateFunctionCode.bind(lambda));
     const lambdaPublishVersion = promisify(lambda.publishVersion.bind(lambda));
@@ -110,14 +111,15 @@ export default {
     const lambdaPublishResult = await lambdaPublishVersion({
       FunctionName: argv.functionName
     });
-    console.log(`Successfully published Lambda function '${argv.functionName}'`);
-    console.log(`  * Function ARN: ${lambdaPublishResult.FunctionArn}`);
-    console.log(`  * Version: ${lambdaPublishResult.Version}`);
 
     console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
     await lambdaWaitFor('functionUpdated', {
       FunctionName: argv.functionName
     });
+
+    console.log(`Successfully published Lambda function '${argv.functionName}'`);
+    console.log(`  * Function ARN: ${lambdaPublishResult.FunctionArn}`);
+    console.log(`  * Version: ${lambdaPublishResult.Version}`);
 
     console.log(`Fetching configuration for CloudFront distribution '${argv.cfDistributionId}'`);
     const currentDistributionConfig = await cfGetDistributionConfig({
@@ -130,8 +132,8 @@ export default {
     delete nextDistributionConfig.ETag;
     nextDistributionConfig.Id = argv.cfDistributionId;
     nextDistributionConfig.IfMatch = currentDistributionConfig.ETag;
-    for (const cacheBehaviors of nextDistributionConfig.DistributionConfig.CacheBehaviors.Items) {
-      for (const association of cacheBehaviors.LambdaFunctionAssociations.Items) {
+    for (const cacheBehavior of nextDistributionConfig.DistributionConfig.CacheBehaviors.Items) {
+      for (const association of cacheBehavior.LambdaFunctionAssociations.Items) {
         if (association.LambdaFunctionARN.startsWith(lambdaUpdateResult.FunctionArn)) {
           console.log('Updating Lambda Function ARN');
           console.log(`  * From: ${association.LambdaFunctionARN}`);
