@@ -49,7 +49,7 @@ $ ./node index.js edge --access-key 487nct72tc4tdjgbj ...
 | access-key | AWS access key | string | yes |
 | secret-key | AWS secret key | string | yes |
 | lambda-env | Environment variable pair to be available to the deployed function, format `name=value` | array of string | no |
-| lambda-env-inject | Optional: Path of the JS file inside the zip file to directly inject environment variables | array of string | no |
+| lambda-env-inject | Path of the JS file inside the zip file to directly inject environment variables | array of string | no |
 | function-name | Name of the Lambda function | string | yes |
 | handler | Handler of the Lambda function | string | yes |
 | zip-file-uri | URL of the ZIP file containing the function code to deploy | string | yes |
