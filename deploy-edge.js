@@ -18,7 +18,7 @@ export default {
     .option('access-key', { demandOption: true, type: 'string' })
     .option('secret-key', { demandOption: true, type: 'string' })
     .option('lambda-env', { type: 'array', string: true })
-    .option('lambda-env-inject', { demandOption: false, type: 'string' })
+    .option('lambda-env-inject', { type: 'string' })
     .option('function-name', { demandOption: true, type: 'string' })
     .option('handler', { demandOption: true, type: 'string' })
     .option('zip-file-uri', { demandOption: true, type: 'string' })
