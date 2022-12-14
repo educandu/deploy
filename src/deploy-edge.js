@@ -1,10 +1,10 @@
-import url from 'url';
-import { EOL } from 'os';
 import AWS from 'aws-sdk';
 import axios from 'axios';
 import JSZip from 'jszip';
-import { promisify } from 'util';
-import { promises as fs } from 'fs';
+import url from 'node:url';
+import { EOL } from 'node:os';
+import { promisify } from 'node:util';
+import { promises as fs } from 'node:fs';
 import parseEnvString from 'parse-env-string';
 
 const { Lambda, CloudFront, Credentials } = AWS;
