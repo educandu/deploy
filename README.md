@@ -1,6 +1,15 @@
 # deploy
 
-Deployment utility for Educandu projects
+[![codecov](https://codecov.io/gh/educandu/deploy/branch/main/graph/badge.svg)](https://codecov.io/gh/educandu/deploy)
+
+Deployment utility for educandu projects
+
+## Prerequisites
+
+* node.js ^18.0.0
+* optional: globally installed gulp: `npm i -g gulp-cli`
+
+The output of this repository is a Docker image (`educandu/deploy`).
 
 ## Command: ecs
 

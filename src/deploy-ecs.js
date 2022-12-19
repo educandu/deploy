@@ -1,5 +1,5 @@
 import AWS from 'aws-sdk';
-import { promisify } from 'util';
+import { promisify } from 'node:util';
 import parseEnvString from 'parse-env-string';
 
 const { ECS, Credentials } = AWS;
