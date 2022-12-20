@@ -14,11 +14,11 @@ jobs:
       DOCKER_IMAGE: educandu/deploy
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.2.0
         with:
           fetch-depth: 0
       - name: Install node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v3.5.1
         with:
           node-version: "18.12.1"
           cache: "yarn"
@@ -26,7 +26,7 @@ jobs:
         run: yarn install --non-interactive --check-files --frozen-lockfile
       - name: Get tag from build environment
         id: tag
-        uses: ilDug/get-tag-action@v1
+        uses: ilDug/get-tag-action@v1.0.1
       - name: Verify tag format
         run: ./node_modules/.bin/gulp verifySemverTag --tag ${{steps.tag.outputs.version}}
       - name: Set package version
