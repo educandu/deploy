@@ -71,10 +71,6 @@ Note:
 * If `lambda-env-inject` is specified, environment variables will not be set in the lambda configuration, but directly injected into the code
 * The AWS region is set automatically to `us-east-1` as this is the only region to configure Lambda@Edge functions
 
-## License
-
-Educandu is released under the MIT License. See the bundled LICENSE file for details.
-
 ---
 
 ## OER learning platform for music
