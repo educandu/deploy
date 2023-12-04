@@ -132,7 +132,13 @@ export default {
     delete nextDistributionConfig.ETag;
     nextDistributionConfig.Id = argv.cfDistributionId;
     nextDistributionConfig.IfMatch = currentDistributionConfig.ETag;
-    for (const cacheBehavior of nextDistributionConfig.DistributionConfig.CacheBehaviors.Items) {
+
+    const cacheBehaviors = [
+      nextDistributionConfig.DistributionConfig.DefaultCacheBehavior,
+      ...nextDistributionConfig.DistributionConfig.CacheBehaviors.Items
+    ];
+
+    for (const cacheBehavior of cacheBehaviors) {
       for (const association of cacheBehavior.LambdaFunctionAssociations.Items) {
         if (association.LambdaFunctionARN.startsWith(lambdaUpdateResult.FunctionArn)) {
           console.log('Updating Lambda Function ARN');

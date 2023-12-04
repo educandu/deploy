@@ -18,7 +18,7 @@ Updates the container image version inside a task definition of a ECS service de
 ### Usage
 
 ~~~
-$ ./node index.js ecs --access-key 487nct72tc4tdjgbj ...
+$ node ./src/index.js ecs --access-key 487nct72tc4tdjgbj ...
 ~~~
 
 ### Arguments
@@ -48,7 +48,7 @@ function, and updates a CloudFront distribution that is using this function to t
 ### Usage
 
 ~~~
-$ ./node index.js edge --access-key 487nct72tc4tdjgbj ...
+$ node ./src/index.js edge --access-key 487nct72tc4tdjgbj ...
 ~~~
 
 ### Arguments
