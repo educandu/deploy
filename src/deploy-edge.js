@@ -137,13 +137,15 @@ export default {
     nextDistributionConfig.Id = argv.cfDistributionId;
     nextDistributionConfig.IfMatch = currentDistributionConfig.ETag;
 
+    const nonDefaultCacheBehaviors = nextDistributionConfig.DistributionConfig.CacheBehaviors.Items || [];
     const cacheBehaviors = [
       nextDistributionConfig.DistributionConfig.DefaultCacheBehavior,
-      ...nextDistributionConfig.DistributionConfig.CacheBehaviors.Items
+      ...nonDefaultCacheBehaviors
     ];
 
     for (const cacheBehavior of cacheBehaviors) {
-      for (const association of cacheBehavior.LambdaFunctionAssociations.Items) {
+      const lambdaFunctionAssociations = cacheBehavior.LambdaFunctionAssociations.Items || [];
+      for (const association of lambdaFunctionAssociations) {
         if (association.LambdaFunctionARN.startsWith(lambdaUpdateResult.FunctionArn)) {
           console.log('Updating Lambda Function ARN');
           console.log(`  * From: ${association.LambdaFunctionARN}`);
