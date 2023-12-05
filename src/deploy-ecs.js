@@ -1,8 +1,5 @@
-import AWS from 'aws-sdk';
-import { promisify } from 'node:util';
 import parseEnvString from 'parse-env-string';
-
-const { ECS, Credentials } = AWS;
+import { ECSClient } from '@aws-sdk/client-ecs';
 
 export default {
   command: 'ecs',
@@ -19,24 +16,21 @@ export default {
     .option('container-env', { type: 'array', string: true })
     .option('wait', { default: false, type: 'boolean' }),
   handler: async argv => {
-    const ecs = new ECS({
+    const ecsClient = new ECSClient({
       region: argv.region,
       apiVersion: '2014-11-13',
-      credentials: new Credentials(argv.accessKey, argv.secretKey)
+      credentials: {
+        accessKeyId: argv.accessKey,
+        secretAccessKey: argv.secretKey
+      }
     });
 
-    const ecsDescribeServices = promisify(ecs.describeServices.bind(ecs));
-    const ecsDescribeTaskDefinition = promisify(ecs.describeTaskDefinition.bind(ecs));
-    const ecsRegisterTaskDefinition = promisify(ecs.registerTaskDefinition.bind(ecs));
-    const ecsUpdateService = promisify(ecs.updateService.bind(ecs));
-    const ecsWaitFor = promisify(ecs.waitFor.bind(ecs));
-
-    const serviceDescriptions = await ecsDescribeServices({
+    const serviceDescriptions = await ecsClient.describeServices({
       cluster: argv.cluster,
       services: [argv.service]
     });
 
-    const taskDefinitionDescription = await ecsDescribeTaskDefinition({
+    const taskDefinitionDescription = await ecsClient.describeTaskDefinition({
       taskDefinition: serviceDescriptions.services[0].taskDefinition
     });
 
@@ -74,7 +68,7 @@ export default {
       })
     };
 
-    const newTaskDefinitionDescription = await ecsRegisterTaskDefinition(newTaskDefinition);
+    const newTaskDefinitionDescription = await ecsClient.registerTaskDefinition(newTaskDefinition);
 
     const registeredTask = newTaskDefinitionDescription.taskDefinition;
     console.log(`New task definition: ${registeredTask.taskDefinitionArn}`);
@@ -83,7 +77,7 @@ export default {
       console.log(`New task definition environment: ${JSON.stringify(containerEnvironmentVariables)}`);
     }
 
-    await ecsUpdateService({
+    await ecsClient.updateService({
       cluster: argv.cluster,
       service: argv.service,
       taskDefinition: registeredTask.taskDefinitionArn
@@ -91,7 +85,7 @@ export default {
 
     if (argv.wait) {
       console.log('Waiting for service stability...');
-      await ecsWaitFor('servicesStable', {
+      await ecsClient.waitFor('servicesStable', {
         cluster: argv.cluster,
         services: [argv.service]
       });

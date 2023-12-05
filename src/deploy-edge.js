@@ -1,13 +1,11 @@
-import AWS from 'aws-sdk';
 import axios from 'axios';
 import JSZip from 'jszip';
 import url from 'node:url';
 import { EOL } from 'node:os';
-import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import parseEnvString from 'parse-env-string';
-
-const { Lambda, CloudFront, Credentials } = AWS;
+import { LambdaClient } from '@aws-sdk/client-lambda';
+import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 
 const REGION = 'us-east-1';
 
@@ -25,33 +23,22 @@ export default {
     .option('cf-distribution-id', { demandOption: true, type: 'string' })
     .option('wait', { default: false, type: 'boolean' }),
   handler: async argv => {
-    const lambda = new Lambda({
+    const credentials = {
+      accessKeyId: argv.accessKey,
+      secretAccessKey: argv.secretKey
+    };
+
+    const lambdaClient = new LambdaClient({
       region: REGION,
       apiVersion: '2015-03-31',
-      credentials: new Credentials(argv.accessKey, argv.secretKey)
+      credentials
     });
 
-    const cf = new CloudFront({
+    const cloudFrontClient = new CloudFrontClient({
       region: REGION,
       apiVersion: '2020-05-31',
-      credentials: new Credentials(argv.accessKey, argv.secretKey)
+      credentials
     });
-
-    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#updateFunctionConfiguration-property
-    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#updateFunctionCode-property
-    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#publishVersion-property
-    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Lambda.html#waitFor-property
-    const lambdaUpdateFunctionConfiguration = promisify(lambda.updateFunctionConfiguration.bind(lambda));
-    const lambdaUpdateFunctionCode = promisify(lambda.updateFunctionCode.bind(lambda));
-    const lambdaPublishVersion = promisify(lambda.publishVersion.bind(lambda));
-    const lambdaWaitFor = promisify(lambda.waitFor.bind(lambda));
-
-    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/CloudFront.html#getDistributionConfig-property
-    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/CloudFront.html#updateDistribution-property
-    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/CloudFront.html#waitFor-property
-    const cfGetDistributionConfig = promisify(cf.getDistributionConfig.bind(cf));
-    const cfUdateDistribution = promisify(cf.updateDistribution.bind(cf));
-    const cfWaitFor = promisify(cf.waitFor.bind(cf));
 
     const envVars = parseEnvString((argv.lambdaEnv || []).join(' '));
 
@@ -83,18 +70,18 @@ export default {
     }
 
     console.log(`Updating code for Lambda function '${argv.functionName}'`);
-    await lambdaUpdateFunctionCode({
+    await lambdaClient.updateFunctionCode({
       FunctionName: argv.functionName,
       ZipFile: zipFileBuffer
     });
 
     console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await lambdaWaitFor('functionUpdated', {
+    await lambdaClient.waitFor('functionUpdated', {
       FunctionName: argv.functionName
     });
 
     console.log(`Updating configuration for Lambda function '${argv.functionName}'`);
-    const lambdaUpdateResult = await lambdaUpdateFunctionConfiguration({
+    const lambdaUpdateResult = await lambdaClient.updateFunctionConfiguration({
       FunctionName: argv.functionName,
       Handler: argv.handler,
       Environment: {
@@ -103,17 +90,17 @@ export default {
     });
 
     console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await lambdaWaitFor('functionUpdated', {
+    await lambdaClient.waitFor('functionUpdated', {
       FunctionName: argv.functionName
     });
 
     console.log(`Publishing Lambda function '${argv.functionName}'`);
-    const lambdaPublishResult = await lambdaPublishVersion({
+    const lambdaPublishResult = await lambdaClient.publishVersion({
       FunctionName: argv.functionName
     });
 
     console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await lambdaWaitFor('functionUpdated', {
+    await lambdaClient.waitFor('functionUpdated', {
       FunctionName: argv.functionName
     });
 
@@ -122,7 +109,7 @@ export default {
     console.log(`  * Version: ${lambdaPublishResult.Version}`);
 
     console.log(`Fetching configuration for CloudFront distribution '${argv.cfDistributionId}'`);
-    const currentDistributionConfig = await cfGetDistributionConfig({
+    const currentDistributionConfig = await cloudFrontClient.getDistributionConfig({
       Id: argv.cfDistributionId
     });
 
@@ -155,7 +142,7 @@ export default {
     }
 
     console.log(`Updating CloudFront distribution '${argv.cfDistributionId}'`);
-    const { ETag: etagAfterUpdate } = await cfUdateDistribution(nextDistributionConfig);
+    const { ETag: etagAfterUpdate } = await cloudFrontClient.udateDistribution(nextDistributionConfig);
     if (etagAfterUpdate !== currentDistributionConfig.ETag) {
       console.log(`Successfully updated CloudFront distribution '${argv.cfDistributionId}':`);
       console.log(`  * Old etag: ${currentDistributionConfig.ETag}`);
@@ -166,7 +153,7 @@ export default {
 
     if (argv.wait) {
       console.log('Waiting for distribution deployment...');
-      await cfWaitFor('distributionDeployed', {
+      await cloudFrontClient.waitFor('distributionDeployed', {
         Id: argv.cfDistributionId
       });
     }
