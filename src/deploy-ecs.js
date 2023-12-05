@@ -1,5 +1,12 @@
 import parseEnvString from 'parse-env-string';
-import { ECSClient } from '@aws-sdk/client-ecs';
+import {
+  DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
+  ECSClient,
+  RegisterTaskDefinitionCommand,
+  UpdateServiceCommand,
+  waitUntilServicesStable
+} from '@aws-sdk/client-ecs';
 
 export default {
   command: 'ecs',
@@ -25,14 +32,14 @@ export default {
       }
     });
 
-    const serviceDescriptions = await ecsClient.describeServices({
+    const serviceDescriptions = await ecsClient.send(new DescribeServicesCommand({
       cluster: argv.cluster,
       services: [argv.service]
-    });
+    }));
 
-    const taskDefinitionDescription = await ecsClient.describeTaskDefinition({
+    const taskDefinitionDescription = await ecsClient.send(new DescribeTaskDefinitionCommand({
       taskDefinition: serviceDescriptions.services[0].taskDefinition
-    });
+    }));
 
     const task = taskDefinitionDescription.taskDefinition;
     console.log(`Current task definition: ${task.taskDefinitionArn}`);
@@ -68,7 +75,7 @@ export default {
       })
     };
 
-    const newTaskDefinitionDescription = await ecsClient.registerTaskDefinition(newTaskDefinition);
+    const newTaskDefinitionDescription = await ecsClient.send(new RegisterTaskDefinitionCommand(newTaskDefinition));
 
     const registeredTask = newTaskDefinitionDescription.taskDefinition;
     console.log(`New task definition: ${registeredTask.taskDefinitionArn}`);
@@ -77,15 +84,17 @@ export default {
       console.log(`New task definition environment: ${JSON.stringify(containerEnvironmentVariables)}`);
     }
 
-    await ecsClient.updateService({
+    await ecsClient.send(new UpdateServiceCommand({
       cluster: argv.cluster,
       service: argv.service,
       taskDefinition: registeredTask.taskDefinitionArn
-    });
+    }));
 
     if (argv.wait) {
       console.log('Waiting for service stability...');
-      await ecsClient.waitFor('servicesStable', {
+      await waitUntilServicesStable({
+        client: ecsClient
+      }, {
         cluster: argv.cluster,
         services: [argv.service]
       });

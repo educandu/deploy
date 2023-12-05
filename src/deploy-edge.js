@@ -4,8 +4,19 @@ import url from 'node:url';
 import { EOL } from 'node:os';
 import { promises as fs } from 'node:fs';
 import parseEnvString from 'parse-env-string';
-import { LambdaClient } from '@aws-sdk/client-lambda';
-import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
+import {
+  CloudFrontClient,
+  GetDistributionConfigCommand,
+  UpdateDistributionCommand,
+  waitUntilDistributionDeployed
+} from '@aws-sdk/client-cloudfront';
+import {
+  LambdaClient,
+  PublishVersionCommand,
+  UpdateFunctionCodeCommand,
+  UpdateFunctionConfigurationCommand,
+  waitUntilFunctionUpdatedV2
+} from '@aws-sdk/client-lambda';
 
 const REGION = 'us-east-1';
 
@@ -70,37 +81,43 @@ export default {
     }
 
     console.log(`Updating code for Lambda function '${argv.functionName}'`);
-    await lambdaClient.updateFunctionCode({
+    await lambdaClient.send(new UpdateFunctionCodeCommand({
       FunctionName: argv.functionName,
       ZipFile: zipFileBuffer
-    });
+    }));
 
     console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await lambdaClient.waitFor('functionUpdated', {
+    await waitUntilFunctionUpdatedV2({
+      client:lambdaClient
+    }, {
       FunctionName: argv.functionName
     });
 
     console.log(`Updating configuration for Lambda function '${argv.functionName}'`);
-    const lambdaUpdateResult = await lambdaClient.updateFunctionConfiguration({
+    const lambdaUpdateResult = await lambdaClient.send(new UpdateFunctionConfigurationCommand({
       FunctionName: argv.functionName,
       Handler: argv.handler,
       Environment: {
         Variables: argv.lambdaEnvInject ? {} : envVars
       }
-    });
+    }));
 
     console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await lambdaClient.waitFor('functionUpdated', {
+    await waitUntilFunctionUpdatedV2({
+      client:lambdaClient
+    }, {
       FunctionName: argv.functionName
     });
 
     console.log(`Publishing Lambda function '${argv.functionName}'`);
-    const lambdaPublishResult = await lambdaClient.publishVersion({
+    const lambdaPublishResult = await lambdaClient.send(new PublishVersionCommand({
       FunctionName: argv.functionName
-    });
+    }));
 
     console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await lambdaClient.waitFor('functionUpdated', {
+    await waitUntilFunctionUpdatedV2({
+      client:lambdaClient
+    }, {
       FunctionName: argv.functionName
     });
 
@@ -109,9 +126,9 @@ export default {
     console.log(`  * Version: ${lambdaPublishResult.Version}`);
 
     console.log(`Fetching configuration for CloudFront distribution '${argv.cfDistributionId}'`);
-    const currentDistributionConfig = await cloudFrontClient.getDistributionConfig({
+    const currentDistributionConfig = await cloudFrontClient.send(new GetDistributionConfigCommand({
       Id: argv.cfDistributionId
-    });
+    }));
 
     let hasUpdates = false;
 
@@ -142,7 +159,7 @@ export default {
     }
 
     console.log(`Updating CloudFront distribution '${argv.cfDistributionId}'`);
-    const { ETag: etagAfterUpdate } = await cloudFrontClient.udateDistribution(nextDistributionConfig);
+    const { ETag: etagAfterUpdate } = await cloudFrontClient.send(new UpdateDistributionCommand(nextDistributionConfig));
     if (etagAfterUpdate !== currentDistributionConfig.ETag) {
       console.log(`Successfully updated CloudFront distribution '${argv.cfDistributionId}':`);
       console.log(`  * Old etag: ${currentDistributionConfig.ETag}`);
@@ -153,7 +170,9 @@ export default {
 
     if (argv.wait) {
       console.log('Waiting for distribution deployment...');
-      await cloudFrontClient.waitFor('distributionDeployed', {
+      await waitUntilDistributionDeployed({
+        client: cloudFrontClient
+      }, {
         Id: argv.cfDistributionId
       });
     }
