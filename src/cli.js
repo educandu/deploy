@@ -25,7 +25,11 @@ yargs(process.argv.slice(2))
       .option('image-tag', { demandOption: true, type: 'string' })
       .option('container-env', { type: 'array', string: true })
       .option('wait', { default: false, type: 'boolean' }),
-    handler: argv => deployEcs({ ...argv, containerEnv: envStringToObject(argv.containerEnv) })
+    handler: argv => deployEcs({
+      ...argv,
+      wait: !!argv.wait,
+      containerEnv: envStringToObject(argv.containerEnv)
+    })
   })
   .command({
     command: 'edge',
@@ -40,7 +44,11 @@ yargs(process.argv.slice(2))
       .option('zip-file-uri', { demandOption: true, type: 'string' })
       .option('cf-distribution-id', { demandOption: true, type: 'string' })
       .option('wait', { default: false, type: 'boolean' }),
-    handler: argv => deployEdge({ ...argv, lambdaEnv: envStringToObject(argv.lambdaEnv) })
+    handler: argv => deployEdge({
+      ...argv,
+      wait: !!argv.wait,
+      lambdaEnv: envStringToObject(argv.lambdaEnv)
+    })
   })
   .demandCommand()
   .help()

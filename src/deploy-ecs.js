@@ -1,3 +1,4 @@
+import { validateDeployEcsOptions } from './validation.js';
 import {
   DescribeServicesCommand,
   DescribeTaskDefinitionCommand,
@@ -7,9 +8,9 @@ import {
   waitUntilServicesStable
 } from '@aws-sdk/client-ecs';
 
-const objectToNameValuePairs = obj => Object.entries(obj).map(([name, value]) => ({ name, value }));
-
 export default async function deployEcs(options) {
+  validateDeployEcsOptions(options);
+
   const ecsClient = new ECSClient({
     region: options.region,
     apiVersion: '2014-11-13',
@@ -31,7 +32,7 @@ export default async function deployEcs(options) {
   const task = taskDefinitionDescription.taskDefinition;
   console.log(`Current task definition: ${task.taskDefinitionArn}`);
 
-  const containerEnvironmentVariables = objectToNameValuePairs(options.containerEnv);
+  const containerEnvironmentVariables = Object.entries(options.containerEnv).map(([name, value]) => ({ name, value }));
 
   const newTaskDefinition = {
     family: task.family,

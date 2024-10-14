@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import url from 'node:url';
 import { EOL } from 'node:os';
 import { promises as fs } from 'node:fs';
+import { validateDeployEdgeOptions } from './validation.js';
 import {
   CloudFrontClient,
   GetDistributionConfigCommand,
@@ -20,6 +21,8 @@ import {
 const REGION = 'us-east-1';
 
 export default async function deployEdge(options) {
+  validateDeployEdgeOptions(options);
+
   const credentials = {
     accessKeyId: options.accessKey,
     secretAccessKey: options.secretKey
