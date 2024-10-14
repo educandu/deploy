@@ -7,7 +7,7 @@ import parseEnvString from 'parse-env-string';
 Graceful.captureExceptions = true;
 Graceful.captureRejections = true;
 
-const envStringToObject = containerEnv => parseEnvString((containerEnv || []).join(' '));
+const envStringToObject = envString => parseEnvString((envString || []).join(' '));
 
 // eslint-disable-next-line no-unused-expressions
 yargs(process.argv.slice(2))
@@ -26,9 +26,16 @@ yargs(process.argv.slice(2))
       .option('container-env', { type: 'array', string: true })
       .option('wait', { default: false, type: 'boolean' }),
     handler: argv => deployEcs({
-      ...argv,
-      wait: !!argv.wait,
-      containerEnv: envStringToObject(argv.containerEnv)
+      accessKey: argv.accessKey,
+      secretKey: argv.secretKey,
+      region: argv.region,
+      cluster: argv.cluster,
+      service: argv.service,
+      container: argv.container,
+      image: argv.image,
+      imageTag: argv.imageTag,
+      containerEnv: envStringToObject(argv.containerEnv),
+      wait: !!argv.wait
     })
   })
   .command({
@@ -45,9 +52,15 @@ yargs(process.argv.slice(2))
       .option('cf-distribution-id', { demandOption: true, type: 'string' })
       .option('wait', { default: false, type: 'boolean' }),
     handler: argv => deployEdge({
-      ...argv,
-      wait: !!argv.wait,
-      lambdaEnv: envStringToObject(argv.lambdaEnv)
+      accessKey: argv.accessKey,
+      secretKey: argv.secretKey,
+      lambdaEnv: envStringToObject(argv.lambdaEnv),
+      lambdaEnvInject: argv.lambdaEnvInject || '',
+      functionName: argv.functionName,
+      handler: argv.handler,
+      zipFileUri: argv.zipFileUri,
+      cfDistributionId: argv.cfDistributionId,
+      wait: !!argv.wait
     })
   })
   .demandCommand()
