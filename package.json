@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "Deployment utility for educandu projects",
   "type": "module",
-  "private": true,
+  "exports": "./src/index.js",
   "engines": {
     "node": "^20.0.0"
   },

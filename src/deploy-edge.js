@@ -3,7 +3,6 @@ import JSZip from 'jszip';
 import url from 'node:url';
 import { EOL } from 'node:os';
 import { promises as fs } from 'node:fs';
-import parseEnvString from 'parse-env-string';
 import {
   CloudFrontClient,
   GetDistributionConfigCommand,
@@ -20,165 +19,149 @@ import {
 
 const REGION = 'us-east-1';
 
-export default {
-  command: 'edge',
-  describe: 'Deploy an AWS Lambda@Edge function used by a CloudFront distribution',
-  builder: yargs => yargs
-    .option('access-key', { demandOption: true, type: 'string' })
-    .option('secret-key', { demandOption: true, type: 'string' })
-    .option('lambda-env', { type: 'array', string: true })
-    .option('lambda-env-inject', { type: 'string' })
-    .option('function-name', { demandOption: true, type: 'string' })
-    .option('handler', { demandOption: true, type: 'string' })
-    .option('zip-file-uri', { demandOption: true, type: 'string' })
-    .option('cf-distribution-id', { demandOption: true, type: 'string' })
-    .option('wait', { default: false, type: 'boolean' }),
-  handler: async argv => {
-    const credentials = {
-      accessKeyId: argv.accessKey,
-      secretAccessKey: argv.secretKey
-    };
+export default async function deployEdge(options) {
+  const credentials = {
+    accessKeyId: options.accessKey,
+    secretAccessKey: options.secretKey
+  };
 
-    const lambdaClient = new LambdaClient({
-      region: REGION,
-      apiVersion: '2015-03-31',
-      credentials
-    });
+  const lambdaClient = new LambdaClient({
+    region: REGION,
+    apiVersion: '2015-03-31',
+    credentials
+  });
 
-    const cloudFrontClient = new CloudFrontClient({
-      region: REGION,
-      apiVersion: '2020-05-31',
-      credentials
-    });
+  const cloudFrontClient = new CloudFrontClient({
+    region: REGION,
+    apiVersion: '2020-05-31',
+    credentials
+  });
 
-    const envVars = parseEnvString((argv.lambdaEnv || []).join(' '));
-
-    let zipFileBuffer;
-    if ((/^https?:\/\//).test(argv.zipFileUri)) {
-      const webRes = await axios.get(argv.zipFileUri, { responseType: 'arraybuffer' });
-      zipFileBuffer = webRes.data;
-    } else if ((/^file:\/\//).test(argv.zipFileUri)) {
-      const filePath = url.fileURLToPath(argv.zipFileUri);
-      zipFileBuffer = await fs.readFile(filePath);
-    } else {
-      throw Error('zipFileUri must use either http(s) or file protocol');
-    }
-
-    if (argv.lambdaEnvInject) {
-      console.log(`Injecting environment variables into '${argv.lambdaEnvInject}'`);
-      const lines = [];
-      lines.push('// --- Environment variables injected by @educandu/deploy --------------------------------v');
-      Object.entries(envVars).forEach(([key, value]) => {
-        lines.push(`process.env["${key.replaceAll('"', '\\"')}"] = "${value.replaceAll('"', '\\"')}";`);
-      });
-      lines.push('// ^-------------------------------- Environment variables injected by @educandu/deploy ---');
-      lines.push('');
-      const zip = new JSZip();
-      await zip.loadAsync(zipFileBuffer);
-      const content = await zip.file(argv.lambdaEnvInject).async('string');
-      zip.file(argv.lambdaEnvInject, [...lines, content].join(EOL));
-      zipFileBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-    }
-
-    console.log(`Updating code for Lambda function '${argv.functionName}'`);
-    await lambdaClient.send(new UpdateFunctionCodeCommand({
-      FunctionName: argv.functionName,
-      ZipFile: zipFileBuffer
-    }));
-
-    console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await waitUntilFunctionUpdatedV2({
-      client:lambdaClient
-    }, {
-      FunctionName: argv.functionName
-    });
-
-    console.log(`Updating configuration for Lambda function '${argv.functionName}'`);
-    const lambdaUpdateResult = await lambdaClient.send(new UpdateFunctionConfigurationCommand({
-      FunctionName: argv.functionName,
-      Handler: argv.handler,
-      Environment: {
-        Variables: argv.lambdaEnvInject ? {} : envVars
-      }
-    }));
-
-    console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await waitUntilFunctionUpdatedV2({
-      client:lambdaClient
-    }, {
-      FunctionName: argv.functionName
-    });
-
-    console.log(`Publishing Lambda function '${argv.functionName}'`);
-    const lambdaPublishResult = await lambdaClient.send(new PublishVersionCommand({
-      FunctionName: argv.functionName
-    }));
-
-    console.log(`Waiting for Lambda function '${argv.functionName}' update to be completed`);
-    await waitUntilFunctionUpdatedV2({
-      client:lambdaClient
-    }, {
-      FunctionName: argv.functionName
-    });
-
-    console.log(`Successfully published Lambda function '${argv.functionName}'`);
-    console.log(`  * Function ARN: ${lambdaPublishResult.FunctionArn}`);
-    console.log(`  * Version: ${lambdaPublishResult.Version}`);
-
-    console.log(`Fetching configuration for CloudFront distribution '${argv.cfDistributionId}'`);
-    const currentDistributionConfig = await cloudFrontClient.send(new GetDistributionConfigCommand({
-      Id: argv.cfDistributionId
-    }));
-
-    let hasUpdates = false;
-
-    const nextDistributionConfig = JSON.parse(JSON.stringify(currentDistributionConfig));
-    delete nextDistributionConfig.ETag;
-    nextDistributionConfig.Id = argv.cfDistributionId;
-    nextDistributionConfig.IfMatch = currentDistributionConfig.ETag;
-
-    const nonDefaultCacheBehaviors = nextDistributionConfig.DistributionConfig.CacheBehaviors.Items || [];
-    const cacheBehaviors = [
-      nextDistributionConfig.DistributionConfig.DefaultCacheBehavior,
-      ...nonDefaultCacheBehaviors
-    ];
-
-    for (const cacheBehavior of cacheBehaviors) {
-      const lambdaFunctionAssociations = cacheBehavior.LambdaFunctionAssociations.Items || [];
-      for (const association of lambdaFunctionAssociations) {
-        if (association.LambdaFunctionARN.startsWith(lambdaUpdateResult.FunctionArn)) {
-          console.log('Updating Lambda Function ARN');
-          console.log(`  * From: ${association.LambdaFunctionARN}`);
-          console.log(`  * To: ${lambdaPublishResult.FunctionArn}`);
-          association.LambdaFunctionARN = lambdaPublishResult.FunctionArn;
-          hasUpdates = true;
-        }
-      }
-    }
-
-    if (!hasUpdates) {
-      throw new Error('CloudFront configuration has no function to update');
-    }
-
-    console.log(`Updating CloudFront distribution '${argv.cfDistributionId}'`);
-    const { ETag: etagAfterUpdate } = await cloudFrontClient.send(new UpdateDistributionCommand(nextDistributionConfig));
-    if (etagAfterUpdate !== currentDistributionConfig.ETag) {
-      console.log(`Successfully updated CloudFront distribution '${argv.cfDistributionId}':`);
-      console.log(`  * Old etag: ${currentDistributionConfig.ETag}`);
-      console.log(`  * New etag: ${etagAfterUpdate}`);
-    } else {
-      throw new Error('CloudFront distribution update was not successful, the etag is still the same');
-    }
-
-    if (argv.wait) {
-      console.log('Waiting for distribution deployment...');
-      await waitUntilDistributionDeployed({
-        client: cloudFrontClient
-      }, {
-        Id: argv.cfDistributionId
-      });
-    }
-
-    console.log('DONE!');
+  let zipFileBuffer;
+  if ((/^https?:\/\//).test(options.zipFileUri)) {
+    const webRes = await axios.get(options.zipFileUri, { responseType: 'arraybuffer' });
+    zipFileBuffer = webRes.data;
+  } else if ((/^file:\/\//).test(options.zipFileUri)) {
+    const filePath = url.fileURLToPath(options.zipFileUri);
+    zipFileBuffer = await fs.readFile(filePath);
+  } else {
+    throw Error('zipFileUri must use either http(s) or file protocol');
   }
-};
+
+  if (options.lambdaEnvInject) {
+    console.log(`Injecting environment variables into '${options.lambdaEnvInject}'`);
+    const lines = [];
+    lines.push('// --- Environment variables injected by @educandu/deploy --------------------------------v');
+    Object.entries(options.lambdaEnv).forEach(([key, value]) => {
+      lines.push(`process.env["${key.replaceAll('"', '\\"')}"] = "${value.replaceAll('"', '\\"')}";`);
+    });
+    lines.push('// ^-------------------------------- Environment variables injected by @educandu/deploy ---');
+    lines.push('');
+    const zip = new JSZip();
+    await zip.loadAsync(zipFileBuffer);
+    const content = await zip.file(options.lambdaEnvInject).async('string');
+    zip.file(options.lambdaEnvInject, [...lines, content].join(EOL));
+    zipFileBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  }
+
+  console.log(`Updating code for Lambda function '${options.functionName}'`);
+  await lambdaClient.send(new UpdateFunctionCodeCommand({
+    FunctionName: options.functionName,
+    ZipFile: zipFileBuffer
+  }));
+
+  console.log(`Waiting for Lambda function '${options.functionName}' update to be completed`);
+  await waitUntilFunctionUpdatedV2({
+    client:lambdaClient
+  }, {
+    FunctionName: options.functionName
+  });
+
+  console.log(`Updating configuration for Lambda function '${options.functionName}'`);
+  const lambdaUpdateResult = await lambdaClient.send(new UpdateFunctionConfigurationCommand({
+    FunctionName: options.functionName,
+    Handler: options.handler,
+    Environment: {
+      Variables: options.lambdaEnvInject ? {} : options.lambdaEnv
+    }
+  }));
+
+  console.log(`Waiting for Lambda function '${options.functionName}' update to be completed`);
+  await waitUntilFunctionUpdatedV2({
+    client:lambdaClient
+  }, {
+    FunctionName: options.functionName
+  });
+
+  console.log(`Publishing Lambda function '${options.functionName}'`);
+  const lambdaPublishResult = await lambdaClient.send(new PublishVersionCommand({
+    FunctionName: options.functionName
+  }));
+
+  console.log(`Waiting for Lambda function '${options.functionName}' update to be completed`);
+  await waitUntilFunctionUpdatedV2({
+    client:lambdaClient
+  }, {
+    FunctionName: options.functionName
+  });
+
+  console.log(`Successfully published Lambda function '${options.functionName}'`);
+  console.log(`  * Function ARN: ${lambdaPublishResult.FunctionArn}`);
+  console.log(`  * Version: ${lambdaPublishResult.Version}`);
+
+  console.log(`Fetching configuration for CloudFront distribution '${options.cfDistributionId}'`);
+  const currentDistributionConfig = await cloudFrontClient.send(new GetDistributionConfigCommand({
+    Id: options.cfDistributionId
+  }));
+
+  let hasUpdates = false;
+
+  const nextDistributionConfig = JSON.parse(JSON.stringify(currentDistributionConfig));
+  delete nextDistributionConfig.ETag;
+  nextDistributionConfig.Id = options.cfDistributionId;
+  nextDistributionConfig.IfMatch = currentDistributionConfig.ETag;
+
+  const nonDefaultCacheBehaviors = nextDistributionConfig.DistributionConfig.CacheBehaviors.Items || [];
+  const cacheBehaviors = [
+    nextDistributionConfig.DistributionConfig.DefaultCacheBehavior,
+    ...nonDefaultCacheBehaviors
+  ];
+
+  for (const cacheBehavior of cacheBehaviors) {
+    const lambdaFunctionAssociations = cacheBehavior.LambdaFunctionAssociations.Items || [];
+    for (const association of lambdaFunctionAssociations) {
+      if (association.LambdaFunctionARN.startsWith(lambdaUpdateResult.FunctionArn)) {
+        console.log('Updating Lambda Function ARN');
+        console.log(`  * From: ${association.LambdaFunctionARN}`);
+        console.log(`  * To: ${lambdaPublishResult.FunctionArn}`);
+        association.LambdaFunctionARN = lambdaPublishResult.FunctionArn;
+        hasUpdates = true;
+      }
+    }
+  }
+
+  if (!hasUpdates) {
+    throw new Error('CloudFront configuration has no function to update');
+  }
+
+  console.log(`Updating CloudFront distribution '${options.cfDistributionId}'`);
+  const { ETag: etagAfterUpdate } = await cloudFrontClient.send(new UpdateDistributionCommand(nextDistributionConfig));
+  if (etagAfterUpdate !== currentDistributionConfig.ETag) {
+    console.log(`Successfully updated CloudFront distribution '${options.cfDistributionId}':`);
+    console.log(`  * Old etag: ${currentDistributionConfig.ETag}`);
+    console.log(`  * New etag: ${etagAfterUpdate}`);
+  } else {
+    throw new Error('CloudFront distribution update was not successful, the etag is still the same');
+  }
+
+  if (options.wait) {
+    console.log('Waiting for distribution deployment...');
+    await waitUntilDistributionDeployed({
+      client: cloudFrontClient
+    }, {
+      Id: options.cfDistributionId
+    });
+  }
+
+  console.log('DONE!');
+}

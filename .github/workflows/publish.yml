@@ -33,6 +33,10 @@ jobs:
         run: npm version --allow-same-version --git-tag-version=false ${{steps.tag.outputs.version}}
       - name: Build
         run: ./node_modules/.bin/gulp build
+      - name: Authenticate with npm
+        run: npm set //registry.npmjs.org/:_authToken ${{secrets.NPM_AUTH_TOKEN}}
+      - name: Publish to npm
+        run: npm publish
       - name: Authenticate with DockerHub
         uses: docker/login-action@v3.3.0
         with:
