@@ -10,4 +10,4 @@ RUN yarn install --non-interactive --frozen-lockfile --check-files --production=
 
 COPY . /app/
 
-ENTRYPOINT ["node", "./src/index.js"]
+ENTRYPOINT ["node", "./src/cli.js"]
