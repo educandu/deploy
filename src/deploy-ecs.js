@@ -11,6 +11,8 @@ import {
 export default async function deployEcs(options) {
   validateDeployEcsOptions(options);
 
+  console.log(`Deploying to ECS with options: ${JSON.stringify(options)}`);
+
   const ecsClient = new ECSClient({
     region: options.region,
     apiVersion: '2014-11-13',
@@ -66,10 +68,6 @@ export default async function deployEcs(options) {
 
   const registeredTask = newTaskDefinitionDescription.taskDefinition;
   console.log(`New task definition: ${registeredTask.taskDefinitionArn}`);
-
-  if (containerEnvironmentVariables.length) {
-    console.log(`New task definition environment: ${JSON.stringify(containerEnvironmentVariables)}`);
-  }
 
   await ecsClient.send(new UpdateServiceCommand({
     cluster: options.cluster,

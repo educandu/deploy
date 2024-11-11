@@ -23,6 +23,8 @@ const REGION = 'us-east-1';
 export default async function deployEdge(options) {
   validateDeployEdgeOptions(options);
 
+  console.log(`Deploying to Lambda Edge with options: ${JSON.stringify(options)}`);
+
   const credentials = {
     accessKeyId: options.accessKey,
     secretAccessKey: options.secretKey
